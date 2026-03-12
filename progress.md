@@ -1,0 +1,42 @@
+Original prompt: 彩色消砖块.swf 重构这个，希望能够用html玩这个游戏
+
+2026-03-12
+- 当前目标已固定：以 SWF 逆向为主、截图校准、只修浏览器兼容和 bug，不改手感。
+- 已把 SWF 内嵌声音提取到 `extracted/sounds/293.mp3`、`197.mp3`、`204.mp3`、`251.mp3`。
+- 已开始从单文件实现拆到 `src/` 模块：
+  - `src/game-rules.js`：规则与状态
+  - `src/render.js`：页面渲染
+  - `src/audio.js`：音效控制
+  - `src/assets.js`：资源入口
+  - `src/main.js`：主循环、输入和测试钩子
+- 已补测试接口目标：
+  - `window.render_game_to_text`
+  - `window.advanceTime(ms)`
+- 下一步：
+  - 校验模块化后的页面是否正常加载
+  - 跑 Playwright 客户端做说明页、开始页、误点扣时、结束重开验证
+  - 继续逆向 SWF 的时间轴和按钮行为，修正当前页面细节与音效映射
+- 已补：
+  - `scripts/static-server.mjs` 用于本地静态服务
+  - 结束音去重，避免超时后每帧重复播放
+- 已增强：
+  - 消除反馈补为“方块本体飞散/旋转”，更接近原版短促命中感
+- 已验证：
+  - 本地静态服务器可用：`scripts/static-server.mjs`
+  - Playwright 客户端已在工作区复制并跑通：`scripts/web_game_playwright_client.mjs`
+  - `scripts/test-flow.json` 已覆盖说明页 -> 标题页 -> 正式游戏 -> 成功消除
+  - 自动化截图输出：`output/web-game/shot-0.png`
+  - 自动化状态输出：`output/web-game/state-0.json`
+- 已修复：
+  - `index.html` 直接双击打开为空白：原因是 `type="module"` 在 `file://` 下被浏览器拦截
+  - 资源路径改为同时兼容 `file://` 与 `http://`
+  - 新增根级 `game.js` 作为浏览器直接运行入口，不再依赖模块加载
+  - 已清理残留 `chrome-headless-shell` 和测试进程，当前无后台占用
+  - 消除后不再触发下落补位，未命中的方块保持原位
+  - 棋盘步长改为和背景一致的 `25px`，并重新对齐到背景方格
+  - 开局布局改为稀疏随机分布，不再整板铺满
+  - 点击判定改为只对空白格生效；点到已有方块不触发消除
+- 待继续：
+  - 当前音效映射仍是基于 SWF 导出名的推断，后续要继续校准 197/204/251/293 的真实用途
+  - 页面视觉仍未 1:1 对齐中文原版标题，需要继续逆向矢量/文本资源
+  - 超长自动化场景（等待整局自然结束后重开）仍然过慢，后续适合增加更细的测试调试钩子
