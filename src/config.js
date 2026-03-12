@@ -12,8 +12,8 @@ export const BOARD = {
 };
 
 export const GAME = {
-  maxTime: 60,
-  missPenalty: 5,
+  maxTime: 120,
+  missPenalty: 10,
 };
 
 export const SPEAKER_HITBOX = {

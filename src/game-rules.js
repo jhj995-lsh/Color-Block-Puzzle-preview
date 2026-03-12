@@ -192,10 +192,10 @@ export function performClick(state, row, col) {
     groups.get(target.color).push(target);
   }
 
-  let picked = [];
+  const picked = [];
   for (const entries of groups.values()) {
-    if (entries.length >= 2 && entries.length > picked.length) {
-      picked = entries;
+    if (entries.length >= 2) {
+      picked.push(...entries);
     }
   }
 
@@ -204,6 +204,7 @@ export function performClick(state, row, col) {
     col,
     targets,
     success: picked.length >= 2,
+    matchedCount: picked.length,
   };
 
   if (picked.length >= 2) {

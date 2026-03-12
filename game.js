@@ -1,7 +1,7 @@
 (function () {
   const STAGE = { width: 660, height: 480 };
   const BOARD = { x: 43, y: 55, cols: 22, rows: 15, cell: 25 };
-  const GAME = { maxTime: 60, missPenalty: 5 };
+  const GAME = { maxTime: 120, missPenalty: 10 };
   const SPEAKER_HITBOX = { x: 582, y: 434, width: 48, height: 30 };
 
   const COLORS = [
@@ -263,14 +263,14 @@
       groups.get(target.color).push(target);
     }
 
-    let picked = [];
+    const picked = [];
     for (const entries of groups.values()) {
-      if (entries.length >= 2 && entries.length > picked.length) {
-        picked = entries;
+      if (entries.length >= 2) {
+        picked.push(...entries);
       }
     }
 
-    state.lastAction = { row, col, targets, success: picked.length >= 2 };
+    state.lastAction = { row, col, targets, success: picked.length >= 2, matchedCount: picked.length };
 
     if (picked.length >= 2) {
       for (const item of picked) {
