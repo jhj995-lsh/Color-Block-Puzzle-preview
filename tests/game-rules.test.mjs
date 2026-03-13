@@ -62,6 +62,7 @@ test("renderStateToText reports chrome mode, viewport profile, overlay, and mobi
   assert.equal(payload.chromeMode, "menu");
   assert.equal(payload.viewportProfile, "iphone17-standard-portrait");
   assert.equal(payload.controlsSheetOpen, false);
+  assert.equal(payload.board.cellHeight > payload.board.cellWidth, true);
   assert.deepEqual(Object.keys(payload.controls).sort(), [
     "audioLabel",
     "colorblindLabel",

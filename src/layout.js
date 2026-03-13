@@ -8,9 +8,11 @@ export const BOARD_PRESETS = {
     },
     board: {
       x: 12,
-      y: 116,
+      y: 76,
       cols: 12,
       rows: 18,
+      cellWidth: 31.5,
+      cellHeight: 37,
       cell: 31.5,
       radius: 10,
     },
@@ -57,6 +59,22 @@ export function getBoardDisplayLabel(settings) {
   const longSide = Math.max(settings.board.cols, settings.board.rows);
   const shortSide = Math.min(settings.board.cols, settings.board.rows);
   return `${longSide}×${shortSide}`;
+}
+
+export function getBoardCellWidth(board) {
+  return board.cellWidth ?? board.cell;
+}
+
+export function getBoardCellHeight(board) {
+  return board.cellHeight ?? board.cell;
+}
+
+export function getBoardPixelWidth(board) {
+  return board.cols * getBoardCellWidth(board);
+}
+
+export function getBoardPixelHeight(board) {
+  return board.rows * getBoardCellHeight(board);
 }
 
 export function getStageRatio(presetName) {

@@ -4,7 +4,12 @@ import {
   LEADERBOARD_KEY,
   STATUS_COPY,
 } from "./config.js";
-import { getBoardSettings, getDefaultBoardPreset } from "./layout.js";
+import {
+  getBoardCellHeight,
+  getBoardCellWidth,
+  getBoardSettings,
+  getDefaultBoardPreset,
+} from "./layout.js";
 
 function getLeaderboardReturnScreen(state) {
   return state.prevOverlayScreen === "__play__" ? null : state.prevOverlayScreen || "start";
@@ -400,10 +405,12 @@ export function performClick(state, row, col) {
     matchedCount: picked.length,
   };
 
-  if (picked.length >= 2) {
-    for (const item of picked) {
-      const x = settings.board.x + item.col * settings.board.cell + settings.board.cell / 2;
-      const y = settings.board.y + item.row * settings.board.cell + settings.board.cell / 2;
+    if (picked.length >= 2) {
+      for (const item of picked) {
+      const cellWidth = getBoardCellWidth(settings.board);
+      const cellHeight = getBoardCellHeight(settings.board);
+      const x = settings.board.x + item.col * cellWidth + cellWidth / 2;
+      const y = settings.board.y + item.row * cellHeight + cellHeight / 2;
       const color = paletteFor(state)[item.color];
       spawnBurst(state, x, y, color);
       spawnFlyingTile(state, x, y, color);
@@ -471,7 +478,8 @@ export function renderStateToText(state) {
     board: {
       cols: settings.board.cols,
       rows: settings.board.rows,
-      cell: settings.board.cell,
+      cellWidth: getBoardCellWidth(settings.board),
+      cellHeight: getBoardCellHeight(settings.board),
     },
     controls: getControlLabels(state),
   });

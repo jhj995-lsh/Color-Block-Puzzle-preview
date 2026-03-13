@@ -65,9 +65,11 @@ const BOARD_PRESETS = {
     },
     board: {
       x: 12,
-      y: 116,
+      y: 76,
       cols: 12,
       rows: 18,
+      cellWidth: 31.5,
+      cellHeight: 37,
       cell: 31.5,
       radius: 10,
     },
@@ -114,6 +116,22 @@ function getBoardDisplayLabel(settings) {
   const longSide = Math.max(settings.board.cols, settings.board.rows);
   const shortSide = Math.min(settings.board.cols, settings.board.rows);
   return `${longSide}×${shortSide}`;
+}
+
+function getBoardCellWidth(board) {
+  return board.cellWidth ?? board.cell;
+}
+
+function getBoardCellHeight(board) {
+  return board.cellHeight ?? board.cell;
+}
+
+function getBoardPixelWidth(board) {
+  return board.cols * getBoardCellWidth(board);
+}
+
+function getBoardPixelHeight(board) {
+  return board.rows * getBoardCellHeight(board);
 }
 
 function getStageRatio(presetName) {
@@ -616,10 +634,12 @@ function performClick(state, row, col) {
     matchedCount: picked.length,
   };
 
-  if (picked.length >= 2) {
-    for (const item of picked) {
-      const x = settings.board.x + item.col * settings.board.cell + settings.board.cell / 2;
-      const y = settings.board.y + item.row * settings.board.cell + settings.board.cell / 2;
+    if (picked.length >= 2) {
+      for (const item of picked) {
+      const cellWidth = getBoardCellWidth(settings.board);
+      const cellHeight = getBoardCellHeight(settings.board);
+      const x = settings.board.x + item.col * cellWidth + cellWidth / 2;
+      const y = settings.board.y + item.row * cellHeight + cellHeight / 2;
       const color = paletteFor(state)[item.color];
       spawnBurst(state, x, y, color);
       spawnFlyingTile(state, x, y, color);
@@ -687,7 +707,8 @@ function renderStateToText(state) {
     board: {
       cols: settings.board.cols,
       rows: settings.board.rows,
-      cell: settings.board.cell,
+      cellWidth: getBoardCellWidth(settings.board),
+      cellHeight: getBoardCellHeight(settings.board),
     },
     controls: getControlLabels(state),
   });
@@ -720,13 +741,15 @@ function renderGame(ctx, state) {
   }
 
   if (state.flash > 0) {
+    const boardWidth = getBoardPixelWidth(board);
+    const boardHeight = getBoardPixelHeight(board);
     ctx.fillStyle = `rgba(255, 128, 128, ${state.flash * 0.65})`;
     ctx.beginPath();
     ctx.roundRect(
       board.x - 10,
       board.y - 10,
-      board.cols * board.cell + 20,
-      board.rows * board.cell + 20,
+      boardWidth + 20,
+      boardHeight + 20,
       24
     );
     ctx.fill();
@@ -764,8 +787,8 @@ function drawBackdrop(ctx, stage, layoutMode) {
 }
 
 function drawBoardPanel(ctx, board) {
-  const width = board.cols * board.cell;
-  const height = board.rows * board.cell;
+  const width = getBoardPixelWidth(board);
+  const height = getBoardPixelHeight(board);
   const panelX = board.x - 12;
   const panelY = board.y - 12;
 
@@ -785,27 +808,33 @@ function drawBoardPanel(ctx, board) {
 }
 
 function drawGridLines(ctx, board) {
+  const cellWidth = getBoardCellWidth(board);
+  const cellHeight = getBoardCellHeight(board);
+  const boardWidth = getBoardPixelWidth(board);
+  const boardHeight = getBoardPixelHeight(board);
   ctx.strokeStyle = "rgba(255, 191, 196, 0.18)";
   ctx.lineWidth = 1;
 
   for (let row = 0; row <= board.rows; row += 1) {
-    const y = board.y + row * board.cell;
+    const y = board.y + row * cellHeight;
     ctx.beginPath();
     ctx.moveTo(board.x, y);
-    ctx.lineTo(board.x + board.cols * board.cell, y);
+    ctx.lineTo(board.x + boardWidth, y);
     ctx.stroke();
   }
 
   for (let col = 0; col <= board.cols; col += 1) {
-    const x = board.x + col * board.cell;
+    const x = board.x + col * cellWidth;
     ctx.beginPath();
     ctx.moveTo(x, board.y);
-    ctx.lineTo(x, board.y + board.rows * board.cell);
+    ctx.lineTo(x, board.y + boardHeight);
     ctx.stroke();
   }
 }
 
 function drawGrid(ctx, state, board) {
+  const cellWidth = getBoardCellWidth(board);
+  const cellHeight = getBoardCellHeight(board);
   const swatches = paletteFor(state);
 
   for (let row = 0; row < board.rows; row += 1) {
@@ -814,15 +843,17 @@ function drawGrid(ctx, state, board) {
       if (cell === null || cell === undefined) {
         continue;
       }
-      const x = board.x + col * board.cell;
-      const y = board.y + row * board.cell;
+      const x = board.x + col * cellWidth;
+      const y = board.y + row * cellHeight;
       const label = state.colorblind ? String((cell % 10) + 1) : "";
-      drawTile(ctx, x, y, board.cell, board.radius, swatches[cell], label);
+      drawTile(ctx, x, y, cellWidth, cellHeight, board.radius, swatches[cell], label);
     }
   }
 }
 
 function drawIdlePreview(ctx, board) {
+  const cellWidth = getBoardCellWidth(board);
+  const cellHeight = getBoardCellHeight(board);
   const palette = ["#ffdbdf", "#d8f0ff", "#fff3bf", "#dff6df"];
 
   for (let row = 0; row < board.rows; row += 1) {
@@ -830,34 +861,35 @@ function drawIdlePreview(ctx, board) {
       if ((row + col) % 3 !== 0) {
         continue;
       }
-      const x = board.x + col * board.cell;
-      const y = board.y + row * board.cell;
+      const x = board.x + col * cellWidth;
+      const y = board.y + row * cellHeight;
       drawTile(
         ctx,
         x,
         y,
-        board.cell,
+        cellWidth,
+        cellHeight,
         board.radius,
         palette[(row + col) % palette.length],
         ""
       );
       ctx.globalAlpha = 0.45;
       ctx.fillStyle = "rgba(255,255,255,0.55)";
-      ctx.fillRect(x + 4, y + 4, board.cell - 8, board.cell - 8);
+      ctx.fillRect(x + 4, y + 4, cellWidth - 8, cellHeight - 8);
       ctx.globalAlpha = 1;
     }
   }
 }
 
-function drawTile(ctx, x, y, cell, radius, color, label) {
-  const gradient = ctx.createLinearGradient(x, y, x, y + cell);
+function drawTile(ctx, x, y, cellWidth, cellHeight, radius, color, label) {
+  const gradient = ctx.createLinearGradient(x, y, x, y + cellHeight);
   gradient.addColorStop(0, shade(color, 0.35));
   gradient.addColorStop(0.5, color);
   gradient.addColorStop(1, shade(color, -0.16));
 
   ctx.fillStyle = gradient;
   ctx.beginPath();
-  ctx.roundRect(x + 1.5, y + 1.5, cell - 3, cell - 3, radius);
+  ctx.roundRect(x + 1.5, y + 1.5, cellWidth - 3, cellHeight - 3, radius);
   ctx.fill();
 
   ctx.strokeStyle = "rgba(255,255,255,0.72)";
@@ -865,18 +897,21 @@ function drawTile(ctx, x, y, cell, radius, color, label) {
   ctx.stroke();
 
   if (label) {
+    const fontSize = Math.max(11, Math.floor(Math.min(cellWidth, cellHeight) * 0.45));
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#fff";
-    ctx.font = `bold ${Math.max(11, Math.floor(cell * 0.45))}px Arial`;
-    ctx.fillText(label, x + cell / 2, y + cell / 2 + 1);
+    ctx.font = `bold ${fontSize}px Arial`;
+    ctx.fillText(label, x + cellWidth / 2, y + cellHeight / 2 + 1);
     ctx.textBaseline = "alphabetic";
   }
 }
 
 function drawCross(ctx, action, board) {
-  const centerX = board.x + action.col * board.cell + board.cell / 2;
-  const centerY = board.y + action.row * board.cell + board.cell / 2;
+  const cellWidth = getBoardCellWidth(board);
+  const cellHeight = getBoardCellHeight(board);
+  const centerX = board.x + action.col * cellWidth + cellWidth / 2;
+  const centerY = board.y + action.row * cellHeight + cellHeight / 2;
 
   ctx.save();
   ctx.strokeStyle = action.success ? "rgba(255, 98, 122, 0.85)" : "rgba(120, 120, 120, 0.5)";
@@ -884,8 +919,8 @@ function drawCross(ctx, action, board) {
   ctx.setLineDash([5, 4]);
 
   for (const target of action.targets) {
-    const targetX = board.x + target.col * board.cell + board.cell / 2;
-    const targetY = board.y + target.row * board.cell + board.cell / 2;
+    const targetX = board.x + target.col * cellWidth + cellWidth / 2;
+    const targetY = board.y + target.row * cellHeight + cellHeight / 2;
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
     ctx.lineTo(targetX, targetY);
@@ -895,7 +930,7 @@ function drawCross(ctx, action, board) {
   ctx.setLineDash([]);
   ctx.fillStyle = action.success ? "#ff4f6a" : "#a8a8a8";
   ctx.beginPath();
-  ctx.arc(centerX, centerY, Math.max(5, board.cell * 0.25), 0, Math.PI * 2);
+  ctx.arc(centerX, centerY, Math.max(5, Math.min(cellWidth, cellHeight) * 0.25), 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
@@ -1147,8 +1182,10 @@ function getBoardCell(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
   const x = (clientX - rect.left) * (canvas.width / rect.width);
   const y = (clientY - rect.top) * (canvas.height / rect.height);
-  const col = Math.floor((x - settings.board.x) / settings.board.cell);
-  const row = Math.floor((y - settings.board.y) / settings.board.cell);
+  const cellWidth = getBoardCellWidth(settings.board);
+  const cellHeight = getBoardCellHeight(settings.board);
+  const col = Math.floor((x - settings.board.x) / cellWidth);
+  const row = Math.floor((y - settings.board.y) / cellHeight);
 
   if (
     col < 0 ||
@@ -1224,7 +1261,7 @@ function renderGameChrome() {
   gameAudioButton.hidden = !immersive;
   gameActions.hidden = !immersive;
   controlsSheet.hidden = !immersive || !state.controlsSheetOpen;
-  statusToast.hidden = !immersive || !state.running;
+  statusToast.hidden = !immersive || !state.running || state.statusMessage === STATUS_COPY.playing;
 
   gameScoreValue.textContent = String(state.score);
   gameTimeValue.textContent = `${Math.ceil(state.timeLeft)}`;

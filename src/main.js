@@ -1,4 +1,4 @@
-import { UI_COPY } from "./config.js";
+import { STATUS_COPY, UI_COPY } from "./config.js";
 import { createAudioController } from "./audio.js";
 import {
   closeLeaderboard,
@@ -19,6 +19,8 @@ import {
 } from "./game-rules.js";
 import {
   fitStageFrame,
+  getBoardCellHeight,
+  getBoardCellWidth,
   getDefaultBoardPreset,
   getStageRatio,
   getViewportProfile,
@@ -99,8 +101,10 @@ function getBoardCell(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
   const x = (clientX - rect.left) * (canvas.width / rect.width);
   const y = (clientY - rect.top) * (canvas.height / rect.height);
-  const col = Math.floor((x - settings.board.x) / settings.board.cell);
-  const row = Math.floor((y - settings.board.y) / settings.board.cell);
+  const cellWidth = getBoardCellWidth(settings.board);
+  const cellHeight = getBoardCellHeight(settings.board);
+  const col = Math.floor((x - settings.board.x) / cellWidth);
+  const row = Math.floor((y - settings.board.y) / cellHeight);
 
   if (
     col < 0 ||
@@ -176,7 +180,7 @@ function renderGameChrome() {
   gameAudioButton.hidden = !immersive;
   gameActions.hidden = !immersive;
   controlsSheet.hidden = !immersive || !state.controlsSheetOpen;
-  statusToast.hidden = !immersive || !state.running;
+  statusToast.hidden = !immersive || !state.running || state.statusMessage === STATUS_COPY.playing;
 
   gameScoreValue.textContent = String(state.score);
   gameTimeValue.textContent = `${Math.ceil(state.timeLeft)}`;
