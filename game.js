@@ -439,11 +439,36 @@
   }
 
   function drawStageFrame() {
-    if (assets.frame.complete) {
-      ctx.drawImage(assets.frame, 0, 0, STAGE.width, STAGE.height);
-    } else {
-      ctx.fillStyle = "#f3f3f3";
-      ctx.fillRect(0, 0, STAGE.width, STAGE.height);
+    const gradient = ctx.createLinearGradient(0, 0, 0, STAGE.height);
+    gradient.addColorStop(0, "#ffffff");
+    gradient.addColorStop(1, "#f3def0");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, STAGE.width, STAGE.height);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.shadowColor = "rgba(0,0,0,0.15)";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 2;
+    ctx.beginPath();
+    ctx.roundRect(16, 16, STAGE.width - 32, STAGE.height - 32, 6);
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    
+    ctx.strokeStyle = "#e8e8e8";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  function drawCheckerboard() {
+    ctx.fillStyle = "#fbfbfb";
+    ctx.fillRect(BOARD.x, BOARD.y, BOARD.cols * BOARD.cell, BOARD.rows * BOARD.cell);
+    ctx.fillStyle = "#f0f0f0";
+    for(let r = 0; r < BOARD.rows; r++) {
+      for(let c = 0; c < BOARD.cols; c++) {
+        if((r + c) % 2 === 0) {
+          ctx.fillRect(BOARD.x + c * BOARD.cell, BOARD.y + r * BOARD.cell, BOARD.cell, BOARD.cell);
+        }
+      }
     }
   }
 
@@ -489,15 +514,13 @@
 
   function drawPlayScreen() {
     drawStageFrame();
-    if (assets.board.complete) {
-      ctx.drawImage(assets.board, 20, 20, 620, 420);
-    }
+    drawCheckerboard();
 
     drawTimeBar();
-    drawScore();
     drawGrid();
     drawFlyingTiles();
     drawParticles();
+    drawCenterScore();
     drawSpeakerIcon();
 
     if (state.lastAction) {
@@ -528,18 +551,52 @@
 
   function drawTimeBar() {
     const ratio = Math.max(0, state.timeLeft / GAME.maxTime);
-    ctx.strokeStyle = "#f6c3c3";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(33, 30, 310, 10);
-    ctx.fillStyle = "#f8c8c8";
-    ctx.fillRect(34, 31, 308 * ratio, 8);
+    const x = STAGE.width / 2 - 150;
+    const y = STAGE.height - 30;
+    ctx.fillStyle = "#eee";
+    ctx.beginPath();
+    ctx.roundRect(x, y, 300, 8, 4);
+    ctx.fill();
+    ctx.fillStyle = "#a1e58b";
+    ctx.beginPath();
+    ctx.roundRect(x, y, 300 * ratio, 8, 4);
+    ctx.fill();
   }
 
-  function drawScore() {
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#ff7a7a";
-    ctx.font = "bold 26px Arial";
-    ctx.fillText(String(state.score), 619, 45);
+  function drawCenterScore() {
+    const text = "SCORE";
+    const scoreText = String(state.score);
+    
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    
+    ctx.font = "bold 44px 'Arial Rounded MT Bold', 'Microsoft YaHei', sans-serif";
+    ctx.miterLimit = 2;
+    ctx.lineJoin = 'round';
+    
+    ctx.fillStyle = "rgba(0,0,0,0.15)";
+    ctx.fillText(text, STAGE.width / 2 + 3, 95 + 3);
+    
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 10;
+    ctx.strokeText(text, STAGE.width / 2, 95);
+    
+    ctx.fillStyle = "#ff7070";
+    ctx.fillText(text, STAGE.width / 2, 95);
+
+    ctx.font = "bold 64px 'Arial Rounded MT Bold', 'Microsoft YaHei', sans-serif";
+    
+    ctx.fillStyle = "rgba(0,0,0,0.15)";
+    ctx.fillText(scoreText, STAGE.width / 2 + 3, 150 + 3);
+    
+    ctx.lineWidth = 12;
+    ctx.strokeText(scoreText, STAGE.width / 2, 150);
+    
+    ctx.fillStyle = "#ff7070";
+    ctx.fillText(scoreText, STAGE.width / 2, 150);
+    
+    ctx.restore();
   }
 
   function drawGrid() {
@@ -558,17 +615,29 @@
   }
 
   function drawTile(x, y, color, label) {
+    ctx.fillStyle = shade(color, -0.1);
+    ctx.beginPath();
+    ctx.roundRect(x + 1, y + 1, BOARD.cell - 2, BOARD.cell - 2, 4);
+    ctx.fill();
+
     const gradient = ctx.createLinearGradient(x, y, x, y + BOARD.cell);
-    gradient.addColorStop(0, shade(color, 0.35));
+    gradient.addColorStop(0, shade(color, 0.4));
     gradient.addColorStop(0.5, color);
-    gradient.addColorStop(1, shade(color, -0.12));
+    gradient.addColorStop(1, shade(color, -0.15));
     ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.roundRect(x + 1.5, y + 1.5, BOARD.cell - 3, BOARD.cell - 3, 5);
+    ctx.roundRect(x + 1, y + 1, BOARD.cell - 2, BOARD.cell - 4, 3);
     ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.72)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+    ctx.beginPath();
+    ctx.roundRect(x + 2, y + 2, BOARD.cell - 4, BOARD.cell * 0.35, 2);
+    ctx.fill();
+    
+    ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
+    ctx.beginPath();
+    ctx.roundRect(x + 2, y + BOARD.cell - 5, BOARD.cell - 4, 2, 1);
+    ctx.fill();
 
     if (label) {
       ctx.textAlign = "center";
@@ -619,13 +688,7 @@
       ctx.globalAlpha = Math.max(0, Math.min(1, tile.life * 1.5));
       ctx.translate(tile.x, tile.y);
       ctx.rotate(tile.rotation);
-      ctx.fillStyle = tile.color;
-      ctx.beginPath();
-      ctx.roundRect(-11, -11, 22, 22, 4);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.6)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      drawTile(-BOARD.cell / 2, -BOARD.cell / 2, tile.color, ""); 
       ctx.restore();
     }
     ctx.globalAlpha = 1;
