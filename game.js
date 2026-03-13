@@ -439,36 +439,14 @@
   }
 
   function drawStageFrame() {
-    const gradient = ctx.createLinearGradient(0, 0, 0, STAGE.height);
-    gradient.addColorStop(0, "#ffffff");
-    gradient.addColorStop(1, "#f3def0");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, STAGE.width, STAGE.height);
-
-    ctx.fillStyle = "#ffffff";
-    ctx.shadowColor = "rgba(0,0,0,0.15)";
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetY = 2;
-    ctx.beginPath();
-    ctx.roundRect(16, 16, STAGE.width - 32, STAGE.height - 32, 6);
-    ctx.fill();
-    ctx.shadowColor = "transparent";
-    
-    ctx.strokeStyle = "#e8e8e8";
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    if (assets.frame.complete) {
+      ctx.drawImage(assets.frame, 0, 0, STAGE.width, STAGE.height);
+    }
   }
 
   function drawCheckerboard() {
-    ctx.fillStyle = "#fbfbfb";
-    ctx.fillRect(BOARD.x, BOARD.y, BOARD.cols * BOARD.cell, BOARD.rows * BOARD.cell);
-    ctx.fillStyle = "#f0f0f0";
-    for(let r = 0; r < BOARD.rows; r++) {
-      for(let c = 0; c < BOARD.cols; c++) {
-        if((r + c) % 2 === 0) {
-          ctx.fillRect(BOARD.x + c * BOARD.cell, BOARD.y + r * BOARD.cell, BOARD.cell, BOARD.cell);
-        }
-      }
+    if (assets.board.complete) {
+      ctx.drawImage(assets.board, 20, 20, 620, 420);
     }
   }
 
@@ -615,29 +593,61 @@
   }
 
   function drawTile(x, y, color, label) {
-    ctx.fillStyle = shade(color, -0.1);
-    ctx.beginPath();
-    ctx.roundRect(x + 1, y + 1, BOARD.cell - 2, BOARD.cell - 2, 4);
-    ctx.fill();
-
-    const gradient = ctx.createLinearGradient(x, y, x, y + BOARD.cell);
-    gradient.addColorStop(0, shade(color, 0.4));
-    gradient.addColorStop(0.5, color);
-    gradient.addColorStop(1, shade(color, -0.15));
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.roundRect(x + 1, y + 1, BOARD.cell - 2, BOARD.cell - 4, 3);
-    ctx.fill();
-
-    ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
-    ctx.beginPath();
-    ctx.roundRect(x + 2, y + 2, BOARD.cell - 4, BOARD.cell * 0.35, 2);
-    ctx.fill();
+    if (!color) return;
     
-    ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
+    // Scale everything relative to the 25x25 SWF original size
+    const scale = BOARD.cell / 25;
+    
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+
+    // 1. Base Layer (from 51.svg etc.) - Solid block color
+    ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.roundRect(x + 2, y + BOARD.cell - 5, BOARD.cell - 4, 2, 1);
+    ctx.roundRect(0, 0, 25, 25, 4); // Basic 25x25 block with 4px border radius
     ctx.fill();
+
+    // 2. Vertical Linear Gradient (from 23.svg gradient0)
+    // Runs top to bottom to create the initial rounded glassy top effect
+    const grad1 = ctx.createLinearGradient(11.3, -8, 11.3, 24); // approximated from coords
+    grad1.addColorStop(0, "rgba(255, 255, 255, 0.3)");
+    grad1.addColorStop(1, "rgba(255, 255, 255, 0.0)");
+    ctx.fillStyle = grad1;
+    ctx.fill(); // re-fill the same path
+
+    // 3. Inner Bevel Layer (from 23.svg gradient1)
+    // Tighter box inside to create 3D ridge
+    const grad2 = ctx.createLinearGradient(11.5, 0, 11.5, 16.5);
+    grad2.addColorStop(0, "rgba(255, 255, 255, 0.4)");
+    grad2.addColorStop(1, "rgba(255, 255, 255, 0.0)");
+    ctx.fillStyle = grad2;
+    ctx.beginPath();
+    // Path translated from 23.svg M21.0 6.05 -> M19.0 20.1 ...
+    ctx.moveTo(21.0, 6.05);
+    ctx.lineTo(21.0, 15.1);
+    ctx.quadraticCurveTo(21.0, 20.1, 19.0, 20.1);
+    ctx.lineTo(4.0, 20.1);
+    ctx.quadraticCurveTo(2.0, 20.1, 2.0, 15.1);
+    ctx.lineTo(2.0, 6.05);
+    ctx.quadraticCurveTo(2.0, 1.0, 4.0, 1.0);
+    ctx.lineTo(19.0, 1.0);
+    ctx.quadraticCurveTo(21.0, 1.0, 21.0, 6.05);
+    ctx.fill();
+
+    // 4. White Crescent Glare (from 14.svg)
+    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.beginPath();
+    // Coordinates extracted from `14.svg` path and translated by 7.5, 5.5
+    ctx.moveTo(12.75, 3.25);
+    ctx.quadraticCurveTo(14.95, 6.5, 15.0, 11.0);
+    ctx.lineTo(0.0, 11.0);
+    ctx.quadraticCurveTo(0.0, 6.5, 2.15, 3.25);
+    ctx.quadraticCurveTo(4.4, 0.0, 7.5, 0.0);
+    ctx.quadraticCurveTo(10.55, 0.0, 12.75, 3.25);
+    ctx.fill();
+
+    ctx.restore();
 
     if (label) {
       ctx.textAlign = "center";
@@ -688,6 +698,7 @@
       ctx.globalAlpha = Math.max(0, Math.min(1, tile.life * 1.5));
       ctx.translate(tile.x, tile.y);
       ctx.rotate(tile.rotation);
+      // Because drawTile expects top-left of the tile to be passed as x,y
       drawTile(-BOARD.cell / 2, -BOARD.cell / 2, tile.color, ""); 
       ctx.restore();
     }
