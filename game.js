@@ -3,6 +3,9 @@
   const BOARD = { x: 43, y: 55, cols: 22, rows: 15, cell: 25 };
   const GAME = { maxTime: 120, missPenalty: 10 };
   const SPEAKER_HITBOX = { x: 582, y: 434, width: 48, height: 30 };
+  const LEADERBOARD_KEY = "colorblock_top5";
+  const LEADERBOARD_BTN = { x: 257, y: 310, width: 146, height: 44 };
+  const BACK_BTN = { x: 257, y: 380, width: 146, height: 44 };
 
   const COLORS = [
     "#ff85f3", "#c9c9c9", "#76d6de", "#d6d76c", "#cb7a16",
@@ -36,6 +39,20 @@
   let lastFrameTime = 0;
   let gameOverSoundPlayed = false;
 
+  function loadLeaderboard() {
+    try {
+      const data = JSON.parse(localStorage.getItem(LEADERBOARD_KEY));
+      if (Array.isArray(data)) return data.slice(0, 5);
+    } catch { /* ignore */ }
+    return [];
+  }
+
+  function saveLeaderboard(board) {
+    try {
+      localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(board));
+    } catch { /* ignore */ }
+  }
+
   function createInitialState() {
     return {
       screen: "explain",
@@ -51,6 +68,8 @@
       grid: [],
       particles: [],
       flyingTiles: [],
+      leaderboard: loadLeaderboard(),
+      prevScreen: "start",
     };
   }
 
@@ -215,6 +234,16 @@
     state.running = false;
     state.gameOver = true;
     state.screen = "gameover";
+
+    // 记录分数到排行榜
+    if (state.score > 0) {
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      state.leaderboard.push({ score: state.score, date: dateStr });
+      state.leaderboard.sort((a, b) => b.score - a.score);
+      state.leaderboard = state.leaderboard.slice(0, 5);
+      saveLeaderboard(state.leaderboard);
+    }
   }
 
   function updateState(dt) {
@@ -326,6 +355,10 @@
     state.audioEnabled = audio.toggle();
   }
 
+  function isInBox(x, y, box) {
+    return x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height;
+  }
+
   function onCanvasInteraction(clientX, clientY) {
     const point = toCanvasPoint(clientX, clientY);
 
@@ -340,7 +373,22 @@
       return;
     }
 
+    if (state.screen === "leaderboard") {
+      if (isInBox(point.x, point.y, BACK_BTN)) {
+        state.screen = state.prevScreen;
+        audio.play("button");
+      }
+      return;
+    }
+
     if (state.screen === "start") {
+      // 点击排行榜按钮
+      if (isInBox(point.x, point.y, LEADERBOARD_BTN)) {
+        state.prevScreen = "start";
+        state.screen = "leaderboard";
+        audio.play("button");
+        return;
+      }
       restartGame();
       audio.play("start");
       gameOverSoundPlayed = false;
@@ -348,6 +396,13 @@
     }
 
     if (state.gameOver) {
+      // 点击排行榜按钮
+      if (isInBox(point.x, point.y, LEADERBOARD_BTN)) {
+        state.prevScreen = "gameover";
+        state.screen = "leaderboard";
+        audio.play("button");
+        return;
+      }
       restartGame();
       audio.play("button");
       gameOverSoundPlayed = false;
@@ -426,6 +481,9 @@
     ctx.fillStyle = "#ff7d7d";
     ctx.font = "bold 40px Microsoft YaHei";
     ctx.fillText("开始", 330, 291);
+
+    // 排行榜按钮
+    drawButton(LEADERBOARD_BTN, "排行榜", 22);
     drawSpeakerIcon();
   }
 
@@ -463,6 +521,9 @@
     ctx.fillStyle = "#8f8f8f";
     ctx.font = "16px Microsoft YaHei";
     ctx.fillText("点击画面重新开始", 330, 286);
+
+    // 排行榜按钮
+    drawButton(LEADERBOARD_BTN, "排行榜", 22);
   }
 
   function drawTimeBar() {
@@ -622,6 +683,85 @@
     ctx.fillText(text, 330, 243);
   }
 
+  function drawButton(box, label, fontSize) {
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.88;
+    ctx.beginPath();
+    ctx.roundRect(box.x, box.y, box.width, box.height, 8);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ff7d7d";
+    ctx.font = `bold ${fontSize}px Microsoft YaHei`;
+    ctx.fillText(label, box.x + box.width / 2, box.y + box.height / 2 + fontSize * 0.35);
+  }
+
+  function drawLeaderboardScreen() {
+    drawStageFrame();
+
+    // 半透明背景面板
+    ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+    ctx.beginPath();
+    ctx.roundRect(100, 60, 460, 360, 16);
+    ctx.fill();
+
+    // 标题
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ff7a7a";
+    ctx.font = "bold 34px Microsoft YaHei";
+    ctx.fillText("🏆 排行榜 TOP 5", 330, 110);
+
+    // 分隔线
+    ctx.strokeStyle = "#f0c0c0";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(140, 125);
+    ctx.lineTo(520, 125);
+    ctx.stroke();
+
+    // 表头
+    ctx.font = "bold 18px Microsoft YaHei";
+    ctx.fillStyle = "#bbb";
+    ctx.textAlign = "center";
+    ctx.fillText("名次", 190, 155);
+    ctx.fillText("得分", 330, 155);
+    ctx.fillText("日期", 460, 155);
+
+    const board = state.leaderboard;
+    const rankColors = ["#ffb300", "#90a4ae", "#bf8040", "#ff7a7a", "#ff7a7a"];
+    const rankLabels = ["🥇", "🥈", "🥉", "4", "5"];
+
+    if (board.length === 0) {
+      ctx.fillStyle = "#ccc";
+      ctx.font = "22px Microsoft YaHei";
+      ctx.textAlign = "center";
+      ctx.fillText("暂无记录，快去玩一局吧！", 330, 250);
+    } else {
+      for (let i = 0; i < board.length; i++) {
+        const y = 190 + i * 44;
+        // 交替行背景
+        if (i % 2 === 0) {
+          ctx.fillStyle = "rgba(255, 200, 200, 0.15)";
+          ctx.fillRect(140, y - 22, 380, 40);
+        }
+        ctx.font = i < 3 ? "bold 24px Microsoft YaHei" : "bold 20px Microsoft YaHei";
+        ctx.fillStyle = rankColors[i];
+        ctx.textAlign = "center";
+        ctx.fillText(rankLabels[i], 190, y + 6);
+        ctx.fillStyle = "#ff6b6b";
+        ctx.font = "bold 22px Microsoft YaHei";
+        ctx.fillText(String(board[i].score), 330, y + 6);
+        ctx.fillStyle = "#aaa";
+        ctx.font = "16px Microsoft YaHei";
+        ctx.fillText(board[i].date || "-", 460, y + 6);
+      }
+    }
+
+    // 返回按钮
+    drawButton(BACK_BTN, "返回", 24);
+    drawSpeakerIcon();
+  }
+
   function shade(hex, amount) {
     const num = parseInt(hex.slice(1), 16);
     const clamp = (value) => Math.max(0, Math.min(255, value));
@@ -637,6 +777,8 @@
       drawExplainScreen();
     } else if (state.screen === "start") {
       drawStartScreen();
+    } else if (state.screen === "leaderboard") {
+      drawLeaderboardScreen();
     } else if (state.screen === "gameover") {
       drawGameOverScreen();
     } else {
