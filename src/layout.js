@@ -29,11 +29,11 @@ export const BOARD_PRESETS = {
       height: 360,
     },
     board: {
-      x: 191,
+      x: 195,
       y: 12,
       cols: 22,
       rows: 15,
-      cell: 22.4,
+      cell: 22,
       radius: 5,
     },
     fillRatio: 0.56,
@@ -115,7 +115,7 @@ export function fitStageFrame({
   const immersive = chromeMode !== "menu";
   const chromePadding =
     chromeMode === "immersive-portrait"
-      ? { horizontal: 2, top: 0, bottom: 0 }
+      ? { horizontal: 0, top: 0, bottom: 0 }
       : chromeMode === "immersive-landscape"
         ? { horizontal: 8, top: 0, bottom: 0 }
         : { horizontal: 16, top: 16, bottom: 16 };

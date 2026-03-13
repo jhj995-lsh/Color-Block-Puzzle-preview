@@ -86,11 +86,11 @@ const BOARD_PRESETS = {
       height: 360,
     },
     board: {
-      x: 191,
+      x: 195,
       y: 12,
       cols: 22,
       rows: 15,
-      cell: 22.4,
+      cell: 22,
       radius: 5,
     },
     fillRatio: 0.56,
@@ -172,7 +172,7 @@ function fitStageFrame({
   const immersive = chromeMode !== "menu";
   const chromePadding =
     chromeMode === "immersive-portrait"
-      ? { horizontal: 2, top: 0, bottom: 0 }
+      ? { horizontal: 0, top: 0, bottom: 0 }
       : chromeMode === "immersive-landscape"
         ? { horizontal: 8, top: 0, bottom: 0 }
         : { horizontal: 16, top: 16, bottom: 16 };
@@ -521,14 +521,14 @@ function findTargets(state, row, col) {
 }
 
 function spawnBurst(state, x, y, color) {
-  for (let index = 0; index < 8; index += 1) {
-    const angle = (Math.PI * 2 * index) / 8;
+  for (let index = 0; index < 6; index += 1) {
+    const angle = (Math.PI * 2 * index) / 6;
     state.particles.push({
       x,
       y,
-      vx: Math.cos(angle) * (150 + Math.random() * 50),
-      vy: Math.sin(angle) * (150 + Math.random() * 50),
-      life: 0.6,
+      vx: Math.cos(angle) * (190 + Math.random() * 55),
+      vy: Math.sin(angle) * (190 + Math.random() * 55),
+      life: 0.45,
       color,
     });
   }
@@ -538,13 +538,47 @@ function spawnFlyingTile(state, x, y, color) {
   state.flyingTiles.push({
     x,
     y,
-    vx: (Math.random() - 0.5) * 350,
-    vy: -300 - Math.random() * 200,
-    rotation: (Math.random() - 0.5) * 0.7,
-    angularVelocity: (Math.random() - 0.5) * 15,
-    life: 1,
+    vx: (Math.random() - 0.5) * 420,
+    vy: -390 - Math.random() * 240,
+    rotation: (Math.random() - 0.5) * 0.9,
+    angularVelocity: (Math.random() - 0.5) * 17,
+    life: 0.72,
     color,
   });
+}
+
+function updateParticlesInPlace(particles, dt) {
+  let writeIndex = 0;
+  for (let index = 0; index < particles.length; index += 1) {
+    const particle = particles[index];
+    particle.x += particle.vx * dt;
+    particle.y += particle.vy * dt;
+    particle.vx *= 0.98;
+    particle.vy *= 0.98;
+    particle.life -= dt;
+    if (particle.life > 0) {
+      particles[writeIndex] = particle;
+      writeIndex += 1;
+    }
+  }
+  particles.length = writeIndex;
+}
+
+function updateFlyingTilesInPlace(flyingTiles, dt) {
+  let writeIndex = 0;
+  for (let index = 0; index < flyingTiles.length; index += 1) {
+    const tile = flyingTiles[index];
+    tile.x += tile.vx * dt;
+    tile.y += tile.vy * dt;
+    tile.vy += 1450 * dt;
+    tile.rotation += tile.angularVelocity * dt;
+    tile.life -= dt;
+    if (tile.life > 0) {
+      flyingTiles[writeIndex] = tile;
+      writeIndex += 1;
+    }
+  }
+  flyingTiles.length = writeIndex;
 }
 
 function endGame(state) {
@@ -578,23 +612,8 @@ function updateState(state, dt) {
     state.flash = Math.max(0, state.flash - dt);
   }
 
-  state.particles = state.particles.filter((particle) => particle.life > 0);
-  for (const particle of state.particles) {
-    particle.x += particle.vx * dt;
-    particle.y += particle.vy * dt;
-    particle.vx *= 0.98;
-    particle.vy *= 0.98;
-    particle.life -= dt;
-  }
-
-  state.flyingTiles = state.flyingTiles.filter((tile) => tile.life > 0);
-  for (const tile of state.flyingTiles) {
-    tile.x += tile.vx * dt;
-    tile.y += tile.vy * dt;
-    tile.vy += 1500 * dt;
-    tile.rotation += tile.angularVelocity * dt;
-    tile.life -= dt;
-  }
+  updateParticlesInPlace(state.particles, dt);
+  updateFlyingTilesInPlace(state.flyingTiles, dt);
 }
 
 function performClick(state, row, col) {
@@ -715,17 +734,17 @@ function renderStateToText(state) {
 }
 
   // ---- src/render.js ----
+const renderCache = {
+  staticKey: "",
+  staticLayer: null,
+  tileSprites: new Map(),
+};
+
 function renderGame(ctx, state) {
   const settings = getDisplayBoardSettings(state);
   const { stage, board } = settings;
-
-  ctx.canvas.width = stage.width;
-  ctx.canvas.height = stage.height;
-  ctx.clearRect(0, 0, stage.width, stage.height);
-
-  drawBackdrop(ctx, stage, state.layoutMode);
-  drawBoardPanel(ctx, board);
-  drawGridLines(ctx, board);
+  ensureCanvasSize(ctx, stage.width, stage.height);
+  drawStaticLayer(ctx, stage, board, state.layoutMode);
 
   if (state.grid.length > 0) {
     drawGrid(ctx, state, board);
@@ -764,47 +783,115 @@ function renderGame(ctx, state) {
   }
 }
 
+function ensureCanvasSize(ctx, width, height) {
+  const canvas = ctx.canvas;
+  if (canvas.width === width && canvas.height === height) {
+    return;
+  }
+  canvas.width = width;
+  canvas.height = height;
+  renderCache.staticKey = "";
+}
+
+function drawStaticLayer(ctx, stage, board, layoutMode) {
+  const staticKey = [
+    stage.width,
+    stage.height,
+    layoutMode,
+    board.x,
+    board.y,
+    board.cols,
+    board.rows,
+    getBoardCellWidth(board),
+    getBoardCellHeight(board),
+    board.radius,
+  ].join("|");
+
+  if (!renderCache.staticLayer || renderCache.staticKey !== staticKey) {
+    const layer = createBufferCanvas(stage.width, stage.height);
+    const layerCtx = layer.getContext("2d");
+    layerCtx.clearRect(0, 0, stage.width, stage.height);
+    drawBackdrop(layerCtx, stage, layoutMode);
+    drawBoardPanel(layerCtx, board);
+    drawGridSurface(layerCtx, board);
+    drawGridLines(layerCtx, board);
+    renderCache.staticLayer = layer;
+    renderCache.staticKey = staticKey;
+  }
+
+  ctx.clearRect(0, 0, stage.width, stage.height);
+  ctx.drawImage(renderCache.staticLayer, 0, 0);
+}
+
+function createBufferCanvas(width, height) {
+  if (typeof OffscreenCanvas === "function") {
+    return new OffscreenCanvas(width, height);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
+}
+
 function drawBackdrop(ctx, stage, layoutMode) {
-  const gradient = ctx.createLinearGradient(0, 0, stage.width, stage.height);
-  gradient.addColorStop(0, layoutMode === "portrait" ? "#fff4ef" : "#fff7e8");
-  gradient.addColorStop(1, layoutMode === "portrait" ? "#f7fbff" : "#f5fff7");
+  const gradient = ctx.createLinearGradient(0, 0, 0, stage.height);
+  gradient.addColorStop(0, layoutMode === "portrait" ? "#f6f7f9" : "#f6f7f7");
+  gradient.addColorStop(1, layoutMode === "portrait" ? "#e8ecef" : "#e9eee9");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, stage.width, stage.height);
 
-  const bubbles = [
-    { x: stage.width * 0.15, y: stage.height * 0.12, r: 54, color: "rgba(255, 189, 196, 0.26)" },
-    { x: stage.width * 0.85, y: stage.height * 0.18, r: 40, color: "rgba(119, 214, 222, 0.22)" },
-    { x: stage.width * 0.76, y: stage.height * 0.78, r: 62, color: "rgba(203, 112, 232, 0.18)" },
-    { x: stage.width * 0.18, y: stage.height * 0.82, r: 48, color: "rgba(214, 215, 108, 0.22)" },
-  ];
-
-  for (const bubble of bubbles) {
-    ctx.fillStyle = bubble.color;
-    ctx.beginPath();
-    ctx.arc(bubble.x, bubble.y, bubble.r, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  ctx.fillStyle = "rgba(255,255,255,0.35)";
+  ctx.fillRect(0, 0, stage.width, Math.min(58, stage.height * 0.14));
 }
 
 function drawBoardPanel(ctx, board) {
   const width = getBoardPixelWidth(board);
   const height = getBoardPixelHeight(board);
-  const panelX = board.x - 12;
-  const panelY = board.y - 12;
+  const panelX = board.x - 10;
+  const panelY = board.y - 10;
 
-  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.fillStyle = "rgba(240, 242, 247, 0.98)";
   ctx.beginPath();
-  ctx.roundRect(panelX, panelY, width + 24, height + 24, 26);
+  ctx.roundRect(panelX, panelY, width + 20, height + 20, 18);
   ctx.fill();
 
-  ctx.strokeStyle = "rgba(255, 168, 176, 0.45)";
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = "rgba(192, 184, 198, 0.74)";
+  ctx.lineWidth = 2;
   ctx.stroke();
 
-  ctx.fillStyle = "rgba(255, 244, 247, 0.8)";
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.78)";
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.roundRect(panelX + 8, panelY + 8, width + 8, height + 8, 22);
+  ctx.roundRect(panelX + 2, panelY + 2, width + 16, height + 16, 15);
+  ctx.stroke();
+}
+
+function drawGridSurface(ctx, board) {
+  const cellWidth = getBoardCellWidth(board);
+  const cellHeight = getBoardCellHeight(board);
+  const boardWidth = getBoardPixelWidth(board);
+  const boardHeight = getBoardPixelHeight(board);
+
+  ctx.fillStyle = "#f8f8f8";
+  ctx.beginPath();
+  ctx.roundRect(board.x, board.y, boardWidth, boardHeight, Math.max(4, board.radius - 2));
   ctx.fill();
+
+  ctx.fillStyle = "#e1e1e1";
+  for (let row = 0; row < board.rows; row += 1) {
+    for (let col = 0; col < board.cols; col += 1) {
+      if ((row + col) % 2 === 0) {
+        continue;
+      }
+      const x = board.x + col * cellWidth;
+      const y = board.y + row * cellHeight;
+      ctx.fillRect(x, y, cellWidth, cellHeight);
+    }
+  }
+
+  ctx.strokeStyle = "rgba(179, 179, 185, 0.88)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(board.x + 0.5, board.y + 0.5, boardWidth - 1, boardHeight - 1);
 }
 
 function drawGridLines(ctx, board) {
@@ -812,22 +899,22 @@ function drawGridLines(ctx, board) {
   const cellHeight = getBoardCellHeight(board);
   const boardWidth = getBoardPixelWidth(board);
   const boardHeight = getBoardPixelHeight(board);
-  ctx.strokeStyle = "rgba(255, 191, 196, 0.18)";
+  ctx.strokeStyle = "rgba(188, 188, 192, 0.9)";
   ctx.lineWidth = 1;
 
   for (let row = 0; row <= board.rows; row += 1) {
-    const y = board.y + row * cellHeight;
+    const y = Math.round(board.y + row * cellHeight) + 0.5;
     ctx.beginPath();
-    ctx.moveTo(board.x, y);
-    ctx.lineTo(board.x + boardWidth, y);
+    ctx.moveTo(board.x + 0.5, y);
+    ctx.lineTo(board.x + boardWidth - 0.5, y);
     ctx.stroke();
   }
 
   for (let col = 0; col <= board.cols; col += 1) {
-    const x = board.x + col * cellWidth;
+    const x = Math.round(board.x + col * cellWidth) + 0.5;
     ctx.beginPath();
-    ctx.moveTo(x, board.y);
-    ctx.lineTo(x, board.y + boardHeight);
+    ctx.moveTo(x, board.y + 0.5);
+    ctx.lineTo(x, board.y + boardHeight - 0.5);
     ctx.stroke();
   }
 }
@@ -882,29 +969,78 @@ function drawIdlePreview(ctx, board) {
 }
 
 function drawTile(ctx, x, y, cellWidth, cellHeight, radius, color, label) {
-  const gradient = ctx.createLinearGradient(x, y, x, y + cellHeight);
-  gradient.addColorStop(0, shade(color, 0.35));
-  gradient.addColorStop(0.5, color);
-  gradient.addColorStop(1, shade(color, -0.16));
+  const sprite = getTileSprite(color, label, cellWidth, cellHeight, radius);
+  ctx.drawImage(sprite, x, y, cellWidth, cellHeight);
+}
 
-  ctx.fillStyle = gradient;
+function getTileSprite(color, label, cellWidth, cellHeight, radius) {
+  const key = `${color}|${label}|${cellWidth.toFixed(2)}|${cellHeight.toFixed(2)}|${radius}`;
+  const cached = renderCache.tileSprites.get(key);
+  if (cached) {
+    return cached;
+  }
+
+  const pixelScale = 2;
+  const spriteWidth = Math.max(2, Math.round(cellWidth * pixelScale));
+  const spriteHeight = Math.max(2, Math.round(cellHeight * pixelScale));
+  const sprite = createBufferCanvas(spriteWidth, spriteHeight);
+  const ctx = sprite.getContext("2d");
+  const scaleX = spriteWidth / cellWidth;
+  const scaleY = spriteHeight / cellHeight;
+  const innerPad = 0.85;
+  const innerWidth = cellWidth - innerPad * 2;
+  const innerHeight = cellHeight - innerPad * 2;
+  const round = Math.max(3, Math.floor(Math.min(innerWidth, innerHeight) * 0.2));
+
+  ctx.scale(scaleX, scaleY);
+
+  ctx.shadowColor = "rgba(0, 0, 0, 0.1)";
+  ctx.shadowBlur = 0.35;
+  ctx.shadowOffsetY = 0.18;
+
+  const fill = ctx.createLinearGradient(0, innerPad, 0, cellHeight - innerPad);
+  fill.addColorStop(0, shade(color, 0.24));
+  fill.addColorStop(0.52, color);
+  fill.addColorStop(1, shade(color, -0.06));
+
+  ctx.fillStyle = fill;
   ctx.beginPath();
-  ctx.roundRect(x + 1.5, y + 1.5, cellWidth - 3, cellHeight - 3, radius);
+  ctx.roundRect(innerPad, innerPad, innerWidth, innerHeight, round);
   ctx.fill();
 
-  ctx.strokeStyle = "rgba(255,255,255,0.72)";
-  ctx.lineWidth = 1;
+  ctx.shadowColor = "transparent";
+
+  const gleam = ctx.createLinearGradient(0, innerPad, 0, innerPad + innerHeight * 0.6);
+  gleam.addColorStop(0, "rgba(255,255,255,0.45)");
+  gleam.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = gleam;
+  ctx.beginPath();
+  ctx.roundRect(
+    innerPad + 1,
+    innerPad + 1,
+    innerWidth - 2,
+    Math.max(4, innerHeight * 0.36),
+    Math.max(2, round - 1)
+  );
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(255,255,255,0.64)";
+  ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  ctx.roundRect(innerPad + 0.45, innerPad + 0.45, innerWidth - 0.9, innerHeight - 0.9, round);
   ctx.stroke();
 
   if (label) {
-    const fontSize = Math.max(11, Math.floor(Math.min(cellWidth, cellHeight) * 0.45));
+    const fontSize = Math.max(11, Math.floor(Math.min(cellWidth, cellHeight) * 0.46));
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = "rgba(255,255,255,0.96)";
     ctx.font = `bold ${fontSize}px Arial`;
-    ctx.fillText(label, x + cellWidth / 2, y + cellHeight / 2 + 1);
-    ctx.textBaseline = "alphabetic";
+    ctx.fillText(label, cellWidth / 2, cellHeight / 2 + 1);
   }
+
+  renderCache.tileSprites.set(key, sprite);
+  return sprite;
 }
 
 function drawCross(ctx, action, board) {
@@ -938,16 +1074,12 @@ function drawCross(ctx, action, board) {
 function drawFlyingTiles(ctx, flyingTiles, radius) {
   for (const tile of flyingTiles) {
     ctx.save();
-    ctx.globalAlpha = Math.max(0, Math.min(1, tile.life * 1.5));
+    ctx.globalAlpha = Math.max(0, Math.min(1, tile.life * 1.35));
     ctx.translate(tile.x, tile.y);
     ctx.rotate(tile.rotation);
-    ctx.fillStyle = tile.color;
-    ctx.beginPath();
-    ctx.roundRect(-11, -11, 22, 22, Math.max(3, radius - 2));
-    ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.6)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    const size = Math.max(14, radius * 2 + 7);
+    const sprite = getTileSprite(tile.color, "", size, size, Math.max(4, radius - 1));
+    ctx.drawImage(sprite, -size / 2, -size / 2, size, size);
     ctx.restore();
   }
   ctx.globalAlpha = 1;
@@ -955,13 +1087,12 @@ function drawFlyingTiles(ctx, flyingTiles, radius) {
 
 function drawParticles(ctx, particles) {
   for (const particle of particles) {
-    ctx.globalAlpha = Math.max(0, particle.life * 2);
+    ctx.globalAlpha = Math.max(0, particle.life * 1.8);
     ctx.fillStyle = particle.color;
-    ctx.save();
-    ctx.translate(particle.x, particle.y);
-    ctx.rotate(particle.life * 8);
-    ctx.fillRect(-7, -7, 14, 14);
-    ctx.restore();
+    const radius = 2.6 + particle.life * 3.4;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, radius, 0, Math.PI * 2);
+    ctx.fill();
   }
   ctx.globalAlpha = 1;
 }
@@ -1141,9 +1272,28 @@ const state = createInitialState(initialViewport.layoutMode, initialViewport.vie
 let lastFrameTime = 0;
 let gameOverSoundPlayed = false;
 let previousOverlayView = null;
+let stageFrameKey = "";
 
 titleValue.textContent = UI_COPY.title;
 subtitleValue.textContent = UI_COPY.subtitle;
+
+function setTextIfChanged(element, nextText) {
+  if (element.textContent !== nextText) {
+    element.textContent = nextText;
+  }
+}
+
+function setHiddenIfChanged(element, nextHidden) {
+  if (element.hidden !== nextHidden) {
+    element.hidden = nextHidden;
+  }
+}
+
+function setDataAttributeIfChanged(element, key, nextValue) {
+  if (element.dataset[key] !== nextValue) {
+    element.dataset[key] = nextValue;
+  }
+}
 
 function readViewportDimension(key, fallback) {
   const viewport = window.visualViewport;
@@ -1221,15 +1371,19 @@ function syncStageFrame() {
     chromeMode: state.chromeMode,
   });
 
-  stageFrame.style.setProperty("--stage-aspect", `${aspect}`);
-  stageFrame.style.width = `${frameSize.width}px`;
-  stageFrame.style.height = `${frameSize.height}px`;
-  stageFrame.style.setProperty("--stage-max-width", `${settings.stage.width}px`);
+  const nextFrameKey = `${aspect}|${frameSize.width}|${frameSize.height}|${settings.stage.width}|${state.layoutMode}|${state.chromeMode}|${state.overlayScreen || "play"}|${state.viewportProfile}`;
+  if (stageFrameKey !== nextFrameKey) {
+    stageFrame.style.setProperty("--stage-aspect", `${aspect}`);
+    stageFrame.style.width = `${frameSize.width}px`;
+    stageFrame.style.height = `${frameSize.height}px`;
+    stageFrame.style.setProperty("--stage-max-width", `${settings.stage.width}px`);
+    stageFrameKey = nextFrameKey;
+  }
 
-  appShell.dataset.layoutMode = state.layoutMode;
-  appShell.dataset.chromeMode = state.chromeMode;
-  appShell.dataset.overlayScreen = state.overlayScreen || "play";
-  appShell.dataset.viewportProfile = state.viewportProfile;
+  setDataAttributeIfChanged(appShell, "layoutMode", state.layoutMode);
+  setDataAttributeIfChanged(appShell, "chromeMode", state.chromeMode);
+  setDataAttributeIfChanged(appShell, "overlayScreen", state.overlayScreen || "play");
+  setDataAttributeIfChanged(appShell, "viewportProfile", state.viewportProfile);
 }
 
 function renderOverlay() {
@@ -1247,35 +1401,38 @@ function renderOverlay() {
 
 function renderMenuHud() {
   const labels = getControlLabels(state);
-  menuScoreValue.textContent = String(state.score);
-  menuTimeValue.textContent = `${Math.ceil(state.timeLeft)}`;
-  menuAudioButton.textContent = labels.audioLabel;
+  setTextIfChanged(menuScoreValue, String(state.score));
+  setTextIfChanged(menuTimeValue, `${Math.ceil(state.timeLeft)}`);
+  setTextIfChanged(menuAudioButton, labels.audioLabel);
 }
 
 function renderGameChrome() {
   const labels = getControlLabels(state);
   const immersive = state.chromeMode !== "menu";
 
-  topHud.hidden = !state.overlayScreen && immersive;
-  gameHud.hidden = !immersive;
-  gameAudioButton.hidden = !immersive;
-  gameActions.hidden = !immersive;
-  controlsSheet.hidden = !immersive || !state.controlsSheetOpen;
-  statusToast.hidden = !immersive || !state.running || state.statusMessage === STATUS_COPY.playing;
+  setHiddenIfChanged(topHud, !state.overlayScreen && immersive);
+  setHiddenIfChanged(gameHud, !immersive);
+  setHiddenIfChanged(gameAudioButton, !immersive);
+  setHiddenIfChanged(gameActions, !immersive);
+  setHiddenIfChanged(controlsSheet, !immersive || !state.controlsSheetOpen);
+  setHiddenIfChanged(
+    statusToast,
+    !immersive || !state.running || state.statusMessage === STATUS_COPY.playing
+  );
 
-  gameScoreValue.textContent = String(state.score);
-  gameTimeValue.textContent = `${Math.ceil(state.timeLeft)}`;
-  gameAudioButton.textContent = labels.compactAudioLabel;
+  setTextIfChanged(gameScoreValue, String(state.score));
+  setTextIfChanged(gameTimeValue, `${Math.ceil(state.timeLeft)}`);
+  setTextIfChanged(gameAudioButton, labels.compactAudioLabel);
   gameAudioButton.setAttribute("aria-label", labels.audioLabel);
-  pauseFab.textContent = labels.pauseLabel;
-  moreFab.textContent = labels.moreLabel;
-  colorblindButton.textContent = labels.colorblindLabel;
-  restartButton.textContent = labels.restartLabel;
-  leaderboardButton.textContent = "排行榜";
+  setTextIfChanged(pauseFab, labels.pauseLabel);
+  setTextIfChanged(moreFab, labels.moreLabel);
+  setTextIfChanged(colorblindButton, labels.colorblindLabel);
+  setTextIfChanged(restartButton, labels.restartLabel);
+  setTextIfChanged(leaderboardButton, "排行榜");
 }
 
 function renderStatus() {
-  statusToast.textContent = state.statusMessage;
+  setTextIfChanged(statusToast, state.statusMessage);
 }
 
 function renderApp() {
@@ -1390,7 +1547,7 @@ function frame(now) {
     lastFrameTime = now;
   }
 
-  const dt = Math.min(now - lastFrameTime, 20);
+  const dt = Math.min(now - lastFrameTime, 33);
   lastFrameTime = now;
   step(dt);
   renderApp();

@@ -292,14 +292,14 @@ export function findTargets(state, row, col) {
 }
 
 function spawnBurst(state, x, y, color) {
-  for (let index = 0; index < 8; index += 1) {
-    const angle = (Math.PI * 2 * index) / 8;
+  for (let index = 0; index < 6; index += 1) {
+    const angle = (Math.PI * 2 * index) / 6;
     state.particles.push({
       x,
       y,
-      vx: Math.cos(angle) * (150 + Math.random() * 50),
-      vy: Math.sin(angle) * (150 + Math.random() * 50),
-      life: 0.6,
+      vx: Math.cos(angle) * (190 + Math.random() * 55),
+      vy: Math.sin(angle) * (190 + Math.random() * 55),
+      life: 0.45,
       color,
     });
   }
@@ -309,13 +309,47 @@ function spawnFlyingTile(state, x, y, color) {
   state.flyingTiles.push({
     x,
     y,
-    vx: (Math.random() - 0.5) * 350,
-    vy: -300 - Math.random() * 200,
-    rotation: (Math.random() - 0.5) * 0.7,
-    angularVelocity: (Math.random() - 0.5) * 15,
-    life: 1,
+    vx: (Math.random() - 0.5) * 420,
+    vy: -390 - Math.random() * 240,
+    rotation: (Math.random() - 0.5) * 0.9,
+    angularVelocity: (Math.random() - 0.5) * 17,
+    life: 0.72,
     color,
   });
+}
+
+function updateParticlesInPlace(particles, dt) {
+  let writeIndex = 0;
+  for (let index = 0; index < particles.length; index += 1) {
+    const particle = particles[index];
+    particle.x += particle.vx * dt;
+    particle.y += particle.vy * dt;
+    particle.vx *= 0.98;
+    particle.vy *= 0.98;
+    particle.life -= dt;
+    if (particle.life > 0) {
+      particles[writeIndex] = particle;
+      writeIndex += 1;
+    }
+  }
+  particles.length = writeIndex;
+}
+
+function updateFlyingTilesInPlace(flyingTiles, dt) {
+  let writeIndex = 0;
+  for (let index = 0; index < flyingTiles.length; index += 1) {
+    const tile = flyingTiles[index];
+    tile.x += tile.vx * dt;
+    tile.y += tile.vy * dt;
+    tile.vy += 1450 * dt;
+    tile.rotation += tile.angularVelocity * dt;
+    tile.life -= dt;
+    if (tile.life > 0) {
+      flyingTiles[writeIndex] = tile;
+      writeIndex += 1;
+    }
+  }
+  flyingTiles.length = writeIndex;
 }
 
 export function endGame(state) {
@@ -349,23 +383,8 @@ export function updateState(state, dt) {
     state.flash = Math.max(0, state.flash - dt);
   }
 
-  state.particles = state.particles.filter((particle) => particle.life > 0);
-  for (const particle of state.particles) {
-    particle.x += particle.vx * dt;
-    particle.y += particle.vy * dt;
-    particle.vx *= 0.98;
-    particle.vy *= 0.98;
-    particle.life -= dt;
-  }
-
-  state.flyingTiles = state.flyingTiles.filter((tile) => tile.life > 0);
-  for (const tile of state.flyingTiles) {
-    tile.x += tile.vx * dt;
-    tile.y += tile.vy * dt;
-    tile.vy += 1500 * dt;
-    tile.rotation += tile.angularVelocity * dt;
-    tile.life -= dt;
-  }
+  updateParticlesInPlace(state.particles, dt);
+  updateFlyingTilesInPlace(state.flyingTiles, dt);
 }
 
 export function performClick(state, row, col) {

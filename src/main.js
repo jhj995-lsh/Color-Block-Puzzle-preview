@@ -60,9 +60,28 @@ const state = createInitialState(initialViewport.layoutMode, initialViewport.vie
 let lastFrameTime = 0;
 let gameOverSoundPlayed = false;
 let previousOverlayView = null;
+let stageFrameKey = "";
 
 titleValue.textContent = UI_COPY.title;
 subtitleValue.textContent = UI_COPY.subtitle;
+
+function setTextIfChanged(element, nextText) {
+  if (element.textContent !== nextText) {
+    element.textContent = nextText;
+  }
+}
+
+function setHiddenIfChanged(element, nextHidden) {
+  if (element.hidden !== nextHidden) {
+    element.hidden = nextHidden;
+  }
+}
+
+function setDataAttributeIfChanged(element, key, nextValue) {
+  if (element.dataset[key] !== nextValue) {
+    element.dataset[key] = nextValue;
+  }
+}
 
 function readViewportDimension(key, fallback) {
   const viewport = window.visualViewport;
@@ -140,15 +159,19 @@ function syncStageFrame() {
     chromeMode: state.chromeMode,
   });
 
-  stageFrame.style.setProperty("--stage-aspect", `${aspect}`);
-  stageFrame.style.width = `${frameSize.width}px`;
-  stageFrame.style.height = `${frameSize.height}px`;
-  stageFrame.style.setProperty("--stage-max-width", `${settings.stage.width}px`);
+  const nextFrameKey = `${aspect}|${frameSize.width}|${frameSize.height}|${settings.stage.width}|${state.layoutMode}|${state.chromeMode}|${state.overlayScreen || "play"}|${state.viewportProfile}`;
+  if (stageFrameKey !== nextFrameKey) {
+    stageFrame.style.setProperty("--stage-aspect", `${aspect}`);
+    stageFrame.style.width = `${frameSize.width}px`;
+    stageFrame.style.height = `${frameSize.height}px`;
+    stageFrame.style.setProperty("--stage-max-width", `${settings.stage.width}px`);
+    stageFrameKey = nextFrameKey;
+  }
 
-  appShell.dataset.layoutMode = state.layoutMode;
-  appShell.dataset.chromeMode = state.chromeMode;
-  appShell.dataset.overlayScreen = state.overlayScreen || "play";
-  appShell.dataset.viewportProfile = state.viewportProfile;
+  setDataAttributeIfChanged(appShell, "layoutMode", state.layoutMode);
+  setDataAttributeIfChanged(appShell, "chromeMode", state.chromeMode);
+  setDataAttributeIfChanged(appShell, "overlayScreen", state.overlayScreen || "play");
+  setDataAttributeIfChanged(appShell, "viewportProfile", state.viewportProfile);
 }
 
 function renderOverlay() {
@@ -166,35 +189,38 @@ function renderOverlay() {
 
 function renderMenuHud() {
   const labels = getControlLabels(state);
-  menuScoreValue.textContent = String(state.score);
-  menuTimeValue.textContent = `${Math.ceil(state.timeLeft)}`;
-  menuAudioButton.textContent = labels.audioLabel;
+  setTextIfChanged(menuScoreValue, String(state.score));
+  setTextIfChanged(menuTimeValue, `${Math.ceil(state.timeLeft)}`);
+  setTextIfChanged(menuAudioButton, labels.audioLabel);
 }
 
 function renderGameChrome() {
   const labels = getControlLabels(state);
   const immersive = state.chromeMode !== "menu";
 
-  topHud.hidden = !state.overlayScreen && immersive;
-  gameHud.hidden = !immersive;
-  gameAudioButton.hidden = !immersive;
-  gameActions.hidden = !immersive;
-  controlsSheet.hidden = !immersive || !state.controlsSheetOpen;
-  statusToast.hidden = !immersive || !state.running || state.statusMessage === STATUS_COPY.playing;
+  setHiddenIfChanged(topHud, !state.overlayScreen && immersive);
+  setHiddenIfChanged(gameHud, !immersive);
+  setHiddenIfChanged(gameAudioButton, !immersive);
+  setHiddenIfChanged(gameActions, !immersive);
+  setHiddenIfChanged(controlsSheet, !immersive || !state.controlsSheetOpen);
+  setHiddenIfChanged(
+    statusToast,
+    !immersive || !state.running || state.statusMessage === STATUS_COPY.playing
+  );
 
-  gameScoreValue.textContent = String(state.score);
-  gameTimeValue.textContent = `${Math.ceil(state.timeLeft)}`;
-  gameAudioButton.textContent = labels.compactAudioLabel;
+  setTextIfChanged(gameScoreValue, String(state.score));
+  setTextIfChanged(gameTimeValue, `${Math.ceil(state.timeLeft)}`);
+  setTextIfChanged(gameAudioButton, labels.compactAudioLabel);
   gameAudioButton.setAttribute("aria-label", labels.audioLabel);
-  pauseFab.textContent = labels.pauseLabel;
-  moreFab.textContent = labels.moreLabel;
-  colorblindButton.textContent = labels.colorblindLabel;
-  restartButton.textContent = labels.restartLabel;
-  leaderboardButton.textContent = "排行榜";
+  setTextIfChanged(pauseFab, labels.pauseLabel);
+  setTextIfChanged(moreFab, labels.moreLabel);
+  setTextIfChanged(colorblindButton, labels.colorblindLabel);
+  setTextIfChanged(restartButton, labels.restartLabel);
+  setTextIfChanged(leaderboardButton, "排行榜");
 }
 
 function renderStatus() {
-  statusToast.textContent = state.statusMessage;
+  setTextIfChanged(statusToast, state.statusMessage);
 }
 
 function renderApp() {
@@ -309,7 +335,7 @@ function frame(now) {
     lastFrameTime = now;
   }
 
-  const dt = Math.min(now - lastFrameTime, 20);
+  const dt = Math.min(now - lastFrameTime, 33);
   lastFrameTime = now;
   step(dt);
   renderApp();
