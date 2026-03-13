@@ -599,13 +599,13 @@
     const scale = BOARD.cell / 25;
     
     ctx.save();
-    ctx.translate(x, y);
+    ctx.translate(x + 1, y + 1);
     ctx.scale(scale, scale);
 
     // 1. Base Layer (from 51.svg etc.) - Solid block color
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.roundRect(0, 0, 25, 25, 4); // Basic 25x25 block with 4px border radius
+    ctx.roundRect(0, 0, 23, 23, 5); // 23x23 block with 5px border radius
     ctx.fill();
 
     // 2. Vertical Linear Gradient (from 23.svg gradient0)
